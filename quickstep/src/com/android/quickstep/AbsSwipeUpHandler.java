@@ -466,6 +466,9 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
                 this::resetStateForAnimationCancel);
         mStateCallback.runOnceAtState(STATE_HANDLER_INVALIDATED | STATE_FINISH_WITH_NO_END,
                 this::resetStateForAnimationCancel);
+        mStateCallback.addChangeListener(STATE_APP_CONTROLLER_RECEIVED | STATE_LAUNCHER_PRESENT
+                            | STATE_SCREENSHOT_VIEW_SHOWN | STATE_CAPTURE_SCREENSHOT,
+                    (b) -> mRecentsView.setRunningTaskHidden(!b));
     }
 
     protected boolean onActivityInit(Boolean alreadyOnHome) {
@@ -645,10 +648,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     }
 
     private void onDeferredActivityLaunch() {
-        mActivityInterface.switchRunningTaskViewToScreenshot(
-                null, () -> {
-                    mTaskAnimationManager.finishRunningRecentsAnimation(true /* toHome */);
-                });
+        mTaskAnimationManager.finishRunningRecentsAnimation(true /* toHome */);
     }
 
     private void setupRecentsViewUi() {
@@ -938,15 +938,24 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     public void onRecentsAnimationStart(RecentsAnimationController controller,
             RecentsAnimationTargets targets) {
         super.onRecentsAnimationStart(controller, targets);
+        if (targets.apps == null || targets.apps.length == 0) {
+            return;
+        }
         if (DesktopTaskView.DESKTOP_MODE_SUPPORTED && targets.hasDesktopTasks()) {
             mRemoteTargetHandles = mTargetGluer.assignTargetsForDesktop(targets);
         } else {
             int untrimmedAppCount = mRemoteTargetHandles.length;
             mRemoteTargetHandles = mTargetGluer.assignTargetsForSplitScreen(targets);
+            if (mRemoteTargetHandles == null || mRemoteTargetHandles.length == 0) {
+                return;
+            }
             if (mRemoteTargetHandles.length < untrimmedAppCount && mIsSwipeForSplit) {
                 updateIsGestureForSplit(mRemoteTargetHandles.length);
                 setupRecentsViewUi();
             }
+        }
+        if (mRemoteTargetHandles == null || mRemoteTargetHandles.length == 0) {
+            return;
         }
         mRecentsAnimationController = controller;
         mRecentsAnimationTargets = targets;
@@ -1940,10 +1949,8 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     }
 
     private void invalidateHandler() {
-        if (!mActivityInterface.isInLiveTileMode() || mGestureState.getEndTarget() != RECENTS) {
-            mInputConsumerProxy.destroy();
-            mTaskAnimationManager.setLiveTileCleanUpHandler(null);
-        }
+        mInputConsumerProxy.destroy();
+        mTaskAnimationManager.setLiveTileCleanUpHandler(null);
         mInputConsumerProxy.unregisterCallback();
         endRunningWindowAnim(false /* cancel */);
 
@@ -1987,6 +1994,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
      * continued quick switch gesture, which cancels the previous handler but doesn't invalidate it.
      */
     private void resetLauncherListeners() {
+        mGestureState.getActivityInterface().setOnDeferredActivityLaunchCallback(null);
         mActivity.getRootView().setOnApplyWindowInsetsListener(null);
 
         if (mRecentsView != null) {
@@ -2031,7 +2039,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
                         }
 
                         MAIN_EXECUTOR.execute(() -> {
-                            if (!updateThumbnail(false /* refreshView */)) {
+                            if (!updateThumbnail(true /* refreshView */)) {
                                 setScreenshotCapturedState();
                             }
                         });
@@ -2039,7 +2047,7 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
                     return;
                 }
 
-                finishTransitionPosted = updateThumbnail(false /* refreshView */);
+                finishTransitionPosted = updateThumbnail(true /* refreshView */);
             }
 
             if (!finishTransitionPosted) {
@@ -2080,18 +2088,12 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
     }
 
     private void finishCurrentTransitionToRecents() {
-        if (mRecentsView != null
-                && mActivityInterface.getDesktopVisibilityController() != null
-                && mActivityInterface.getDesktopVisibilityController().areFreeformTasksVisible()) {
-            mRecentsView.switchToScreenshot(() -> {
-                mRecentsView.finishRecentsAnimation(true /* toRecents */, false /* shouldPip */,
-                        () -> mStateCallback.setStateOnUiThread(STATE_CURRENT_TASK_FINISHED));
-            });
-        } else {
+        if (!hasTargets() || mRecentsAnimationController == null) {
+            // If there are no targets or the animation not started, then there is nothing to finish
             mStateCallback.setStateOnUiThread(STATE_CURRENT_TASK_FINISHED);
-            if (mRecentsAnimationController != null) {
-                mRecentsAnimationController.detachNavigationBarFromApp(true);
-            }
+        } else {
+            mRecentsAnimationController.finish(true /* toRecents */,
+                    () -> mStateCallback.setStateOnUiThread(STATE_CURRENT_TASK_FINISHED));
         }
     }
 
@@ -2160,11 +2162,6 @@ public abstract class AbsSwipeUpHandler<T extends StatefulActivity<S>,
         }
         endLauncherTransitionController();
         mRecentsView.onSwipeUpAnimationSuccess();
-        mTaskAnimationManager.setLiveTileCleanUpHandler(() -> {
-            mRecentsView.cleanupRemoteTargets();
-            mInputConsumerProxy.destroy();
-        });
-        mTaskAnimationManager.enableLiveTileRestartListener();
 
         SystemUiProxy.INSTANCE.get(mContext).onOverviewShown(false, TAG);
         doLogGesture(RECENTS, mRecentsView.getCurrentPageTaskView());
