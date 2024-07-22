@@ -125,6 +125,7 @@ import android.view.ViewTreeObserver.OnPreDrawListener;
 import android.view.WindowManager.LayoutParams;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.animation.OvershootInterpolator;
+import android.view.inputmethod.InputMethodManager;
 import android.window.BackEvent;
 import android.window.OnBackAnimationCallback;
 
@@ -429,6 +430,8 @@ public class Launcher extends StatefulActivity<LauncherState>
     private final CannedAnimationCoordinator mAnimationCoordinator =
             new CannedAnimationCoordinator(this);
 
+    private InputMethodManager mInputMethodManager;
+
     @Override
     @TargetApi(Build.VERSION_CODES.S)
     protected void onCreate(Bundle savedInstanceState) {
@@ -592,6 +595,9 @@ public class Launcher extends StatefulActivity<LauncherState>
         }
         setTitle(R.string.home_screen);
         mStartupLatencyLogger.logEnd(LAUNCHER_LATENCY_STARTUP_ACTIVITY_ON_CREATE);
+
+        mInputMethodManager = (InputMethodManager) mWorkspace.getContext().getSystemService(
+                Context.INPUT_METHOD_SERVICE); 
     }
 
     /**
@@ -3365,7 +3371,11 @@ public class Launcher extends StatefulActivity<LauncherState>
      * @param progress Transition progress from 0 to 1; where 0 => home and 1 => all apps.
      */
     public void onAllAppsTransition(float progress) {
-        // No-Op
+        if (progress > 0) return;
+        if (mAppsView == null) return;
+        if (mInputMethodManager == null) return;
+        // make sure the keyboard is hidden when the AllApps view is closed
+        mInputMethodManager.hideSoftInputFromWindow(mAppsView.getWindowToken(), 0);
     }
 
     /**
