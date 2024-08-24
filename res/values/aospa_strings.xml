@@ -81,4 +81,7 @@
     <string name="pref_themed_icons_summary">Follow themed icons used on home screen</string>
     <string name="themed_icons_disabled_summary">Themed icons are turned off in Wallpaper &amp; style</string>
 
+    <!-- LMOFreeform -->
+    <string name="floating_window">Floating</string>
+
 </resources>
