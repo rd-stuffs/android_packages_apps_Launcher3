@@ -81,4 +81,7 @@
     <!-- Font size -->
     <string name="font_size_title">Font size</string>
 
+    <!-- LMOFreeform -->
+    <string name="floating_window">Floating</string>
+
 </resources>

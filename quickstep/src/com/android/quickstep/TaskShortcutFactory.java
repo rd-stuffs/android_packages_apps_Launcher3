@@ -25,6 +25,7 @@ import android.app.Activity;
 import android.app.ActivityManagerNative;
 import android.app.ActivityOptions;
 import android.app.IActivityManager;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Rect;
@@ -265,6 +266,42 @@ public interface TaskShortcutFactory {
         }
     }
 
+    class FloatingSystemShortcut extends SystemShortcut<BaseDraggingActivity> {
+        private static final String FREEFORM_PACKAGE = "com.libremobileos.freeform";
+        private static final String FREEFORM_INTENT = "com.libremobileos.freeform.START_FREEFORM";
+
+        private final TaskView mTaskView;
+
+        public FloatingSystemShortcut(BaseDraggingActivity activity,
+                TaskIdAttributeContainer taskContainer) {
+            // TODO new icon?
+            super(R.drawable.float_portrait_2_24px, R.string.floating_window,
+                    activity, taskContainer.getItemInfo(), taskContainer.getTaskView());
+            mTaskView = taskContainer.getTaskView();
+        }
+
+        @Override
+        public void onClick(View view) {
+            dismissTaskMenuView(mTarget);
+            RecentsView rv = mTarget.getOverviewPanel();
+            rv.switchToScreenshot(() -> {
+                rv.finishRecentsAnimation(true /* toRecents */, false /* shouldPip */, () -> {
+                    mTarget.returnToHomescreen();
+                    rv.getHandler().post(this::startLmoFreeform);
+                });
+            });
+        }
+
+        private void startLmoFreeform() {
+            final Intent intent = new Intent(FREEFORM_INTENT)
+                    .setPackage(FREEFORM_PACKAGE)
+                    .putExtra("packageName", mTaskView.getTask().key.getPackageName())
+                    .putExtra("activityName", mTaskView.getTask().getTopComponent().getClassName())
+                    .putExtra("userId", mTaskView.getTask().key.userId);
+            mTarget.getApplicationContext().sendBroadcast(intent);
+        }
+    }
+
     /**
      * Does NOT add split options in the following scenarios:
      * * The taskView to add split options is already showing split screen tasks
@@ -339,6 +376,19 @@ public interface TaskShortcutFactory {
                     taskContainer.getTask().getTopComponent().getPackageName()) ? null :
                     Collections.singletonList(new SystemShortcut.UnInstall(activity,
                             taskContainer.getItemInfo(), taskContainer.getTaskView()));
+        }
+    };
+
+    TaskShortcutFactory FLOATING = new TaskShortcutFactory() {
+        @Override
+        public List<SystemShortcut> getShortcuts(BaseDraggingActivity activity,
+                TaskIdAttributeContainer taskContainer) {
+            final Task task  = taskContainer.getTask();
+            if (!task.isDockable) {
+                return null;
+            }
+
+            return Collections.singletonList(new FloatingSystemShortcut(activity, taskContainer));
         }
     };
 
