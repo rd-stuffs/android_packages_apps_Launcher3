@@ -76,7 +76,7 @@ public class DefaultSearchAdapterProvider extends SearchAdapterProvider<Activity
             Intent intent = new Intent(Intent.ACTION_WEB_SEARCH);
             intent.setPackage("com.google.android.googlequicksearchbox");
             intent.putExtra(SearchManager.QUERY, query);
-            return mLauncher.startActivitySafely(view, intent, null) != null;
+            return mLauncher.startActivitySafely(view, intent, null, false) != null;
         }
         return false;
     }

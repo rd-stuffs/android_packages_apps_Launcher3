@@ -325,21 +325,29 @@ public interface ActivityContext {
         return null;
     }
 
+    default RunnableList startActivitySafely(
+            View v, Intent intent, @Nullable ItemInfo item) {
+        return startActivitySafely(v, intent, item, true);
+    }
+
     /**
      * Safely starts an activity.
      *
      * @param v View starting the activity.
      * @param intent Base intent being launched.
      * @param item Item associated with the view.
+     * @param showToast Whether to show toast if the activity fails to launch
      * @return RunnableList for listening for animation finish if the activity was properly
      *         or started, {@code null} if the launch finished
      */
     default RunnableList startActivitySafely(
-            View v, Intent intent, @Nullable ItemInfo item) {
+            View v, Intent intent, @Nullable ItemInfo item, boolean showToast) {
         Preconditions.assertUIThread();
         Context context = (Context) this;
         if (isAppBlockedForSafeMode() && !PackageManagerHelper.isSystemApp(context, intent)) {
-            Toast.makeText(context, R.string.safemode_shortcut_error, Toast.LENGTH_SHORT).show();
+            if (showToast) {
+                Toast.makeText(context, R.string.safemode_shortcut_error, Toast.LENGTH_SHORT).show();
+            }
             return null;
         }
 
@@ -378,7 +386,9 @@ public interface ActivityContext {
             }
             return options.onEndCallback;
         } catch (NullPointerException | ActivityNotFoundException | SecurityException e) {
-            Toast.makeText(context, R.string.activity_not_found, Toast.LENGTH_SHORT).show();
+            if (showToast) {
+                Toast.makeText(context, R.string.activity_not_found, Toast.LENGTH_SHORT).show();
+            }
             Log.e(TAG, "Unable to launch. tag=" + item + " intent=" + intent, e);
         }
         return null;
