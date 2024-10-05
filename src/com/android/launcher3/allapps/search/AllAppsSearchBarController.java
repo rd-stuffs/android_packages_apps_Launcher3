@@ -33,6 +33,7 @@ import com.android.launcher3.allapps.BaseAllAppsAdapter.AdapterItem;
 import com.android.launcher3.config.FeatureFlags;
 import com.android.launcher3.search.SearchAlgorithm;
 import com.android.launcher3.search.SearchCallback;
+import com.android.launcher3.util.PackageManagerHelper;
 import com.android.launcher3.views.ActivityContext;
 
 /**
@@ -120,7 +121,6 @@ public class AllAppsSearchBarController
 
     @Override
     public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-
         if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_GO) {
             // Skip if the query is empty
             String query = v.getText().toString();
@@ -128,8 +128,20 @@ public class AllAppsSearchBarController
                 return false;
             }
 
+            // Attempt Google search first
+            boolean googleSearchSuccess = mLauncher.getAppsView().getMainAdapterProvider().performGoogleSearch(v, query);
+            if (googleSearchSuccess) {
+                return true;
+            }
+
+            // If Google search fails, try searching on the Play Store
+            boolean marketSearchSuccess = mLauncher.startActivitySafely(v, PackageManagerHelper.getMarketSearchIntent(v.getContext(), query), null, false) != null;
+            if (marketSearchSuccess) {
+                return true;
+            }
+
             // selectFocusedView should return SearchTargetEvent that is passed onto onClick
-            return mLauncher.getAppsView().getMainAdapterProvider().performGoogleSearch(v, query);
+            return mLauncher.getAppsView().getMainAdapterProvider().launchHighlightedItem();
         }
         return false;
     }
